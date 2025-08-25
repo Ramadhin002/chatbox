@@ -4,6 +4,10 @@ import http from "http";
 import { Server } from "socket.io";
 import mongoose from "mongoose";
 import cors from "cors";
+import dotenv from "dotenv";
+import { connectDB } from "./db.js";
+
+dotenv.config();
 
 const app = express();
 const server = http.createServer(app);
@@ -13,11 +17,7 @@ app.use(cors());
 app.use(express.json());
 
 // Connect MongoDB
-mongoose.connect("mongodb://127.0.0.1:27017/chatapp", {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-
+connectDB();
 // Message Schema
 const messageSchema = new mongoose.Schema({
   chatId: String,
@@ -31,19 +31,27 @@ const Message = mongoose.model("Message", messageSchema);
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // Join private room
   socket.on("joinRoom", (roomId) => {
     socket.join(roomId);
   });
 
-  // Send + Save message
   socket.on("sendMessage", async (msg) => {
-    const newMsg = new Message(msg);
-    await newMsg.save();
-    io.to(msg.chatId).emit("receiveMessage", newMsg); // broadcast
+    try {
+      const newMsg = new Message(msg);
+      await newMsg.save();
+      io.to(msg.chatId).emit("receiveMessage", newMsg);
+    } catch (err) {
+      console.error("Error saving message:", err);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
   });
 });
 
-server.listen(5000, () => {
-  console.log("Server running on http://localhost:5000");
+// ✅ Use Render port or fallback to 5000
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
